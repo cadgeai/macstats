@@ -2,6 +2,7 @@ import Foundation
 import CoreGraphics
 import CryptoKit
 import Cocoa
+import CoreServices
 
 // MARK: - Config
 let dataDir = NSString(string: "~/.macstats").expandingTildeInPath
@@ -38,9 +39,38 @@ struct MacStatsData: Codable {
     // Active app time (seconds, converted to minutes at display)
     var appActiveSeconds: [String: UInt64]
 
-    // Downloads
+    // Downloads (quarantine-verified internet downloads)
     var totalFilesDownloaded: UInt64
     var totalDownloadedBytes: UInt64
+
+    // Files created (all new files on disk)
+    var totalFilesCreated: UInt64
+    var totalFilesCreatedBytes: UInt64
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        startDate = try c.decode(String.self, forKey: .startDate)
+        totalKeystrokes = try c.decode(UInt64.self, forKey: .totalKeystrokes)
+        keyCounts = try c.decode([String: UInt64].self, forKey: .keyCounts)
+        dailyKeystrokes = try c.decode([String: UInt64].self, forKey: .dailyKeystrokes)
+        totalScrollPoints = try c.decode(Double.self, forKey: .totalScrollPoints)
+        totalScreenOnSeconds = try c.decode(UInt64.self, forKey: .totalScreenOnSeconds)
+        dailyScreenSeconds = try c.decode([String: UInt64].self, forKey: .dailyScreenSeconds)
+        totalNetworkBytesIn = try c.decode(UInt64.self, forKey: .totalNetworkBytesIn)
+        totalNetworkBytesOut = try c.decode(UInt64.self, forKey: .totalNetworkBytesOut)
+        totalSecondsPluggedIn = try c.decode(UInt64.self, forKey: .totalSecondsPluggedIn)
+        totalSecondsOnBattery = try c.decode(UInt64.self, forKey: .totalSecondsOnBattery)
+        totalWattHoursConsumed = try c.decode(Double.self, forKey: .totalWattHoursConsumed)
+        appLaunchCounts = try c.decode([String: UInt64].self, forKey: .appLaunchCounts)
+        appActiveSeconds = try c.decode([String: UInt64].self, forKey: .appActiveSeconds)
+        totalFilesDownloaded = try c.decode(UInt64.self, forKey: .totalFilesDownloaded)
+        totalDownloadedBytes = try c.decode(UInt64.self, forKey: .totalDownloadedBytes)
+        totalFilesCreated = try c.decodeIfPresent(UInt64.self, forKey: .totalFilesCreated) ?? 0
+        totalFilesCreatedBytes = try c.decodeIfPresent(UInt64.self, forKey: .totalFilesCreatedBytes) ?? 0
+        totalClicks = try c.decode(UInt64.self, forKey: .totalClicks)
+        clickCounts = try c.decode([String: UInt64].self, forKey: .clickCounts)
+        totalMousePoints = try c.decode(Double.self, forKey: .totalMousePoints)
+    }
 
     // Clicks
     var totalClicks: UInt64
@@ -107,6 +137,8 @@ var pAppLaunches: [String: UInt64] = [:]
 var pAppActiveSeconds: [String: UInt64] = [:]
 var pFilesDownloaded: UInt64 = 0
 var pDownloadedBytes: UInt64 = 0
+var pFilesCreated: UInt64 = 0
+var pFilesCreatedBytes: UInt64 = 0
 var pClicks: UInt64 = 0
 var pClickCounts: [String: UInt64] = [:]
 var pMousePoints: Double = 0
@@ -118,8 +150,18 @@ var lastMouseX: Double = 0
 var lastMouseY: Double = 0
 var lastMouseInitialized = false
 var lastFrontmostApp: String = ""
-var knownDownloads: [String: UInt64] = [:]
 var runningApps: Set<String> = []
+
+// FSEvents file tracking
+struct TrackedFile {
+    var inode: UInt64
+    var lastSize: UInt64
+    var stableCount: Int  // how many checks size stayed the same
+    var counted: Bool     // already added to stats
+    var isDownload: Bool  // has quarantine attribute
+}
+var trackedFiles: [String: TrackedFile] = [:]  // path -> tracking info
+var fsEventStream: FSEventStreamRef?
 
 // MARK: - Keycode Map
 let keycodeNames: [Int64: String] = [
@@ -212,6 +254,8 @@ func flush() {
     for (k, v) in pAppActiveSeconds { stats.appActiveSeconds[k, default: 0] += v }
     stats.totalFilesDownloaded += pFilesDownloaded
     stats.totalDownloadedBytes += pDownloadedBytes
+    stats.totalFilesCreated += pFilesCreated
+    stats.totalFilesCreatedBytes += pFilesCreatedBytes
     stats.totalClicks += pClicks
     for (k, v) in pClickCounts { stats.clickCounts[k, default: 0] += v }
     stats.totalMousePoints += pMousePoints
@@ -224,6 +268,7 @@ func flush() {
     pSecondsPluggedIn = 0; pSecondsOnBattery = 0; pWattHours = 0
     pAppLaunches = [:]; pAppActiveSeconds = [:]
     pFilesDownloaded = 0; pDownloadedBytes = 0
+    pFilesCreated = 0; pFilesCreatedBytes = 0
     pClicks = 0; pClickCounts = [:]
     pMousePoints = 0
 
@@ -330,52 +375,143 @@ func getPowerState() -> PowerState {
     return PowerState(isPluggedIn: isPluggedIn, watts: watts)
 }
 
-// MARK: - Downloads Scanner
-func scanDownloads() {
-    let downloadsPath = NSString(string: "~/Downloads").expandingTildeInPath
+// MARK: - FSEvents File Tracking
+
+func hasQuarantineAttribute(_ path: String) -> Bool {
+    // Check for com.apple.quarantine extended attribute
+    let size = getxattr(path, "com.apple.quarantine", nil, 0, 0, 0)
+    return size >= 0
+}
+
+func getFileInode(_ path: String) -> UInt64? {
+    var st = Darwin.stat()
+    guard lstat(path, &st) == 0 else { return nil }
+    return UInt64(st.st_ino)
+}
+
+func processNewFile(_ path: String) {
+    let fm = FileManager.default
+    guard let attrs = try? fm.attributesOfItem(atPath: path) else { return }
+
+    // Skip directories
+    if let fileType = attrs[.type] as? FileAttributeType, fileType == .typeDirectory {
+        return
+    }
+
+    let fileSize = attrs[.size] as? UInt64 ?? 0
+    guard let inode = getFileInode(path) else { return }
+
+    // Check if we're already tracking this path
+    if let existing = trackedFiles[path] {
+        if existing.inode == inode {
+            // Same file got modified — reset stability counter
+            trackedFiles[path]!.lastSize = fileSize
+            trackedFiles[path]!.stableCount = 0
+        } else {
+            // Different inode = file was deleted and recreated (re-download)
+            let isDownload = hasQuarantineAttribute(path)
+            trackedFiles[path] = TrackedFile(inode: inode, lastSize: fileSize, stableCount: 0, counted: false, isDownload: isDownload)
+        }
+    } else {
+        // Brand new file
+        let isDownload = hasQuarantineAttribute(path)
+        trackedFiles[path] = TrackedFile(inode: inode, lastSize: fileSize, stableCount: 0, counted: false, isDownload: isDownload)
+    }
+}
+
+func countFile(path: String, file: TrackedFile) {
+    // Always count towards files created
+    pFilesCreated += 1
+    pFilesCreatedBytes += file.lastSize
+
+    // Only count as download if it has quarantine attribute
+    if file.isDownload {
+        pFilesDownloaded += 1
+        pDownloadedBytes += file.lastSize
+    }
+
+    trackedFiles[path]?.counted = true
+}
+
+func processStableFiles() {
     let fm = FileManager.default
 
-    guard let contents = try? fm.contentsOfDirectory(atPath: downloadsPath) else { return }
+    for (path, file) in trackedFiles {
+        guard !file.counted else { continue }
 
-    for filename in contents {
-        guard !filename.hasPrefix(".") else { continue }
-        let fullPath = "\(downloadsPath)/\(filename)"
+        // Re-read current size to check stability
+        guard let attrs = try? fm.attributesOfItem(atPath: path),
+              let currentSize = attrs[.size] as? UInt64 else {
+            // File was deleted before we could count it — remove
+            trackedFiles.removeValue(forKey: path)
+            continue
+        }
 
-        guard let attrs = try? fm.attributesOfItem(atPath: fullPath) else { continue }
-        let fileSize = attrs[.size] as? UInt64 ?? 0
-
-        if let previousSize = knownDownloads[filename] {
-            // File already known — update tracked size if it changed (still downloading)
-            if fileSize != previousSize {
-                knownDownloads[filename] = fileSize
-            }
+        if currentSize == file.lastSize {
+            trackedFiles[path]!.stableCount += 1
         } else {
-            // New file — track it
-            knownDownloads[filename] = fileSize
+            trackedFiles[path]!.lastSize = currentSize
+            trackedFiles[path]!.stableCount = 0
+        }
 
-            // Only count files modified in the last 60 seconds as new downloads
-            if let modDate = attrs[.modificationDate] as? Date,
-               Date().timeIntervalSince(modDate) < 60 {
-                pFilesDownloaded += 1
-                pDownloadedBytes += fileSize
+        // Count after size stable for 2 consecutive checks (20+ seconds)
+        if trackedFiles[path]!.stableCount >= 2 {
+            // Re-check quarantine at final count time (attribute may be set after creation)
+            if hasQuarantineAttribute(path) {
+                trackedFiles[path]!.isDownload = true
+            }
+            countFile(path: path, file: trackedFiles[path]!)
+        }
+    }
+
+    // Clean up counted entries to prevent unbounded growth
+    if trackedFiles.count > 5000 {
+        let counted = trackedFiles.filter { $0.value.counted }
+        for (path, _) in counted.prefix(counted.count - 1000) {
+            trackedFiles.removeValue(forKey: path)
+        }
+    }
+}
+
+let fsCallback: FSEventStreamCallback = { _, _, numEvents, eventPaths, eventFlags, _ in
+    guard let paths = unsafeBitCast(eventPaths, to: NSArray.self) as? [String] else { return }
+
+    for i in 0..<numEvents {
+        let path = paths[i]
+        let flags = eventFlags[i]
+
+        // Skip our own data file
+        if path.contains(".macstats") { continue }
+
+        // Item created or modified
+        if flags & UInt32(kFSEventStreamEventFlagItemIsFile) != 0 {
+            if flags & UInt32(kFSEventStreamEventFlagItemCreated) != 0 ||
+               flags & UInt32(kFSEventStreamEventFlagItemModified) != 0 {
+                processNewFile(path)
             }
         }
     }
 }
 
-func initializeKnownDownloads() {
-    let downloadsPath = NSString(string: "~/Downloads").expandingTildeInPath
-    let fm = FileManager.default
+func startFSEventStream() {
+    var pathsToWatch = ["/Users" as CFString] as CFArray
+    let latency: CFTimeInterval = 2.0
 
-    guard let contents = try? fm.contentsOfDirectory(atPath: downloadsPath) else { return }
+    var context = FSEventStreamContext(version: 0, info: nil, retain: nil, release: nil, copyDescription: nil)
 
-    for filename in contents {
-        guard !filename.hasPrefix(".") else { continue }
-        let fullPath = "\(downloadsPath)/\(filename)"
-        guard let attrs = try? fm.attributesOfItem(atPath: fullPath) else { continue }
-        let fileSize = attrs[.size] as? UInt64 ?? 0
-        knownDownloads[filename] = fileSize
-    }
+    guard let stream = FSEventStreamCreate(
+        kCFAllocatorDefault,
+        fsCallback,
+        &context,
+        pathsToWatch,
+        FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+        latency,
+        UInt32(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes)
+    ) else { return }
+
+    fsEventStream = stream
+    FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+    FSEventStreamStart(stream)
 }
 
 // MARK: - App Tracking
@@ -469,8 +605,8 @@ stats = loadData()
 let initialNet = getNetworkBytes()
 lastNetBytesIn = initialNet.bytesIn
 lastNetBytesOut = initialNet.bytesOut
-initializeKnownDownloads()
 initializeRunningApps()
+startFSEventStream()
 
 // Event tap: keys + scroll + clicks + mouse movement
 var eventMask: CGEventMask = 0
@@ -556,7 +692,7 @@ Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { _ in
 
 // MARK: - 10-Second Timer (downloads, app launches, save)
 Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { _ in
-    scanDownloads()
+    processStableFiles()
     checkAppLaunches()
     flush()
 }

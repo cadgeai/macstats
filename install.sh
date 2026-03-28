@@ -88,6 +88,8 @@ struct MacStatsData: Codable {
     var appActiveSeconds: [String: UInt64]
     var totalFilesDownloaded: UInt64
     var totalDownloadedBytes: UInt64
+    var totalFilesCreated: UInt64
+    var totalFilesCreatedBytes: UInt64
     var totalClicks: UInt64
     var clickCounts: [String: UInt64]
     var totalMousePoints: Double
@@ -105,6 +107,7 @@ let seed = MacStatsData(
     totalSecondsPluggedIn: 0, totalSecondsOnBattery: 0, totalWattHoursConsumed: 0,
     appLaunchCounts: [:], appActiveSeconds: [:],
     totalFilesDownloaded: 0, totalDownloadedBytes: 0,
+    totalFilesCreated: 0, totalFilesCreatedBytes: 0,
     totalClicks: 0, clickCounts: [:],
     totalMousePoints: 0
 )

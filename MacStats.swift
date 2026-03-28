@@ -70,6 +70,33 @@ struct MacStatsData: Codable {
     var appActiveSeconds: [String: UInt64]
     var totalFilesDownloaded: UInt64
     var totalDownloadedBytes: UInt64
+    var totalFilesCreated: UInt64
+    var totalFilesCreatedBytes: UInt64
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        startDate = try c.decode(String.self, forKey: .startDate)
+        totalKeystrokes = try c.decode(UInt64.self, forKey: .totalKeystrokes)
+        keyCounts = try c.decode([String: UInt64].self, forKey: .keyCounts)
+        dailyKeystrokes = try c.decode([String: UInt64].self, forKey: .dailyKeystrokes)
+        totalScrollPoints = try c.decode(Double.self, forKey: .totalScrollPoints)
+        totalScreenOnSeconds = try c.decode(UInt64.self, forKey: .totalScreenOnSeconds)
+        dailyScreenSeconds = try c.decode([String: UInt64].self, forKey: .dailyScreenSeconds)
+        totalNetworkBytesIn = try c.decode(UInt64.self, forKey: .totalNetworkBytesIn)
+        totalNetworkBytesOut = try c.decode(UInt64.self, forKey: .totalNetworkBytesOut)
+        totalSecondsPluggedIn = try c.decode(UInt64.self, forKey: .totalSecondsPluggedIn)
+        totalSecondsOnBattery = try c.decode(UInt64.self, forKey: .totalSecondsOnBattery)
+        totalWattHoursConsumed = try c.decode(Double.self, forKey: .totalWattHoursConsumed)
+        appLaunchCounts = try c.decode([String: UInt64].self, forKey: .appLaunchCounts)
+        appActiveSeconds = try c.decode([String: UInt64].self, forKey: .appActiveSeconds)
+        totalFilesDownloaded = try c.decode(UInt64.self, forKey: .totalFilesDownloaded)
+        totalDownloadedBytes = try c.decode(UInt64.self, forKey: .totalDownloadedBytes)
+        totalFilesCreated = try c.decodeIfPresent(UInt64.self, forKey: .totalFilesCreated) ?? 0
+        totalFilesCreatedBytes = try c.decodeIfPresent(UInt64.self, forKey: .totalFilesCreatedBytes) ?? 0
+        totalClicks = try c.decode(UInt64.self, forKey: .totalClicks)
+        clickCounts = try c.decode([String: UInt64].self, forKey: .clickCounts)
+        totalMousePoints = try c.decode(Double.self, forKey: .totalMousePoints)
+    }
     var totalClicks: UInt64
     var clickCounts: [String: UInt64]
     var totalMousePoints: Double
@@ -366,6 +393,12 @@ default:
     section("↓", "DOWNLOADS")
     print("    \(dim)files\(reset)            \(bold)\(blue)\(num(s.totalFilesDownloaded))\(reset)")
     print("    \(dim)total size\(reset)       \(bold)\(blue)\(formatBytes(s.totalDownloadedBytes))\(reset)")
+    print()
+
+    // Files created
+    section("✦", "FILES CREATED")
+    print("    \(dim)files\(reset)            \(bold)\(blue)\(num(s.totalFilesCreated))\(reset)")
+    print("    \(dim)total size\(reset)       \(bold)\(blue)\(formatBytes(s.totalFilesCreatedBytes))\(reset)")
     print()
 
     print("  \(dim)run \(cyan)macstats --help\(dim) for detailed views\(reset)")
