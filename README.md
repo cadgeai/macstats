@@ -15,48 +15,59 @@ Every keystroke, every click, every pixel your cursor moves, every watt your mac
 | **Screen time** | Every second your screen is on and unlocked, broken down by day |
 | **Active app time** | Minutes spent in each app (frontmost + not idle) |
 | **App launches** | How many times you've opened each app |
-| **Network** | Total bytes downloaded and uploaded over WiFi |
+| **Network** | Total bytes downloaded and uploaded over WiFi/Ethernet |
 | **Power** | Kilowatt-hours consumed, time on AC vs battery |
-| **Downloads** | Total files downloaded and their combined size |
+| **Downloads** | Files downloaded from the internet (detected via macOS quarantine attribute), tracked filesystem-wide |
+| **Files created** | Every new file created on disk — total count and size |
 
 ## Demo
 
 ```
-  ┌─────────────────────────────────────────┐
-  │         M A C   L I F E T I M E          │
-  └─────────────────────────────────────────┘
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃          M A C   L I F E T I M E               ┃
+  ┃            since 2026-01-01                    ┃
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-  tracking since 2026-01-01
+       2,847,391          743,218          94d 7h 23m
+      keystrokes          clicks           screen time
 
-  2,847,391 keystrokes
-  743,218 clicks
-
-  ⌨  KEYBOARD
-    today            8,412
-    most pressed     Space (389,201)
-
-  ◎  TRACKPAD
-    LeftClick        698,442
-    RightClick       41,519
-
-  ⤳  CURSOR
-    distance         26.41 miles
-
-  ↕  SCROLL
-    distance         14.72 miles
-
-  ◉  SCREEN TIME
-    lifetime         94d 7h 23m
-    today            6h 41m
-
-  ⚡  POWER
-    consumed         87.34 kWh
-    on AC            62d 14h 8m
-    on battery       31d 17h 15m
-
-  ⇅  NETWORK
-    ↓ downloaded     1.4 TB
-    ↑ uploaded       247.8 GB
+  ── ⌨️  KEYBOARD ───────────────────────────────
+  │  today               8,412
+  │  most pressed        Space (389,201)
+  │
+  ── 🖱️  TRACKPAD ───────────────────────────────
+  │  LeftClick           ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░  698,442
+  │  RightClick          ▓░░░░░░░░░░░░░░░░   41,519
+  │
+  ── 🏃 MOVEMENT ────────────────────────────────
+  │  cursor              26.41 miles
+  │  scroll              14.72 miles
+  │
+  ── 🖥️  SCREEN TIME ───────────────────────────
+  │  lifetime            94d 7h 23m
+  │  today               6h 41m
+  │
+  ── 📊 TOP APPS ────────────────────────────────
+  │  🥇 Google Chrome    ▓▓▓▓▓▓▓▓▓▓▓▓░░  48d 2h
+  │  🥈 Terminal         ▓▓▓▓▓░░░░░░░░░  22d 11h
+  │  🥉 VS Code          ▓▓▓░░░░░░░░░░░  14d 6h
+  │
+  ── 🌐 NETWORK ─────────────────────────────────
+  │  ↓ downloaded        1.4 TB
+  │  ↑ uploaded          247.8 GB
+  │
+  ── ⚡ POWER ───────────────────────────────────
+  │  consumed            87.34 kWh
+  │  on AC               62d 14h 8m  ●
+  │  on battery          31d 17h 15m ●
+  │
+  ── 📥 DOWNLOADS ───────────────────────────────
+  │  files               2,847
+  │  total size          142.7 GB
+  │
+  ── 📁 FILES CREATED ──────────────────────────
+  │  files               1,247,391
+  │  total size          892.4 GB
 ```
 
 Output is color-coded in your terminal.
@@ -69,9 +80,6 @@ Requires macOS and Xcode Command Line Tools (`xcode-select --install`).
 git clone https://github.com/cadgeai/macstats.git
 cd macstats
 chmod +x install.sh
-swiftc -O -o macstats-daemon MacStatsDaemon.swift -framework Cocoa -framework CoreGraphics
-swiftc -O -o macstats MacStats.swift
-sudo cp macstats-daemon macstats /usr/local/bin/
 ./install.sh
 ```
 
@@ -115,8 +123,10 @@ macstats --help       show all commands
 - **CGEventTap** listens for keystrokes, clicks, scroll, and cursor movement
 - **NSWorkspace** tracks frontmost app and app launches
 - **IOKit** reads battery amperage and voltage every 10 seconds
-- **netstat** polls network interface bytes
-- **FSEvents** watches `~/Downloads` for new files
+- **netstat** polls network interface bytes (deduplicated per interface)
+- **FSEvents** watches `/Users` filesystem-wide for new file creation
+- **Quarantine attribute** (`com.apple.quarantine`) identifies real internet downloads vs regular files
+- **Inode tracking + stable-size detection** ensures accurate file count and final file size
 - Data is **AES-256-GCM encrypted** using a key derived from your Mac's hardware UUID
 - Data file is marked **immutable** (`chflags uchg`) to prevent accidental deletion
 - Everything flushes to disk every 10 seconds, and immediately on sleep or screen lock
@@ -147,7 +157,7 @@ Remove `macstats-daemon` from System Settings → Accessibility.
 
 - Cannot capture keystrokes on the lock screen or FileVault pre-boot (macOS blocks this for security)
 - Power tracking is estimated from battery sensor data, not wall power — accurate to ~5-10%
-- Downloads are tracked by watching `~/Downloads` only, not browser-level
+- Downloads are detected via macOS quarantine attribute — covers browsers and system curl, but not git, wget, or scp
 - A force shutdown (holding power 5+ seconds) can lose up to 10 seconds of data
 
 ## License
