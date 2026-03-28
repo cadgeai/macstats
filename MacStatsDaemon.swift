@@ -463,17 +463,16 @@ initializeKnownDownloads()
 initializeRunningApps()
 
 // Event tap: keys + scroll + clicks + mouse movement
-let eventMask: CGEventMask = (
-    (1 << CGEventType.keyDown.rawValue) |
-    (1 << CGEventType.scrollWheel.rawValue) |
-    (1 << CGEventType.leftMouseDown.rawValue) |
-    (1 << CGEventType.rightMouseDown.rawValue) |
-    (1 << CGEventType.otherMouseDown.rawValue) |
-    (1 << CGEventType.mouseMoved.rawValue) |
-    (1 << CGEventType.leftMouseDragged.rawValue) |
-    (1 << CGEventType.rightMouseDragged.rawValue) |
-    (1 << CGEventType.otherMouseDragged.rawValue)
-)
+var eventMask: CGEventMask = 0
+eventMask |= (1 << CGEventType.keyDown.rawValue)
+eventMask |= (1 << CGEventType.scrollWheel.rawValue)
+eventMask |= (1 << CGEventType.leftMouseDown.rawValue)
+eventMask |= (1 << CGEventType.rightMouseDown.rawValue)
+eventMask |= (1 << CGEventType.otherMouseDown.rawValue)
+eventMask |= (1 << CGEventType.mouseMoved.rawValue)
+eventMask |= (1 << CGEventType.leftMouseDragged.rawValue)
+eventMask |= (1 << CGEventType.rightMouseDragged.rawValue)
+eventMask |= (1 << CGEventType.otherMouseDragged.rawValue)
 
 guard let tap = CGEvent.tapCreate(
     tap: .cgSessionEventTap,
