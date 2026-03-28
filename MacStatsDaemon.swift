@@ -261,6 +261,8 @@ func getNetworkBytes() -> (bytesIn: UInt64, bytesOut: UInt64) {
     var totalIn: UInt64 = 0
     var totalOut: UInt64 = 0
 
+    var seenInterfaces: Set<String> = []
+
     for line in output.components(separatedBy: "\n") {
         // Match en* interfaces (en0 = WiFi, en* = others)
         let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -270,6 +272,11 @@ func getNetworkBytes() -> (bytesIn: UInt64, bytesOut: UInt64) {
         // netstat -ib format: Name Mtu Network Address Ipkts Ierrs Ibytes Opkts Oerrs Obytes
         // Some rows have fewer columns (link-level vs ip rows)
         guard parts.count >= 10 else { continue }
+
+        // Only count the first row per interface (link-level) to avoid double-counting
+        let iface = parts[0]
+        guard !seenInterfaces.contains(iface) else { continue }
+        seenInterfaces.insert(iface)
 
         // Only count rows that have numeric byte values
         if let bIn = UInt64(parts[6]), let bOut = UInt64(parts[9]) {
