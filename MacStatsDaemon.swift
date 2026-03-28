@@ -118,7 +118,7 @@ var lastMouseX: Double = 0
 var lastMouseY: Double = 0
 var lastMouseInitialized = false
 var lastFrontmostApp: String = ""
-var knownDownloads: Set<String> = []
+var knownDownloads: [String: UInt64] = [:]
 var runningApps: Set<String> = []
 
 // MARK: - Keycode Map
@@ -344,11 +344,14 @@ func scanDownloads() {
         guard let attrs = try? fm.attributesOfItem(atPath: fullPath) else { continue }
         let fileSize = attrs[.size] as? UInt64 ?? 0
 
-        // Use filename + size as unique identifier
-        let fileKey = "\(filename)|\(fileSize)"
-
-        if !knownDownloads.contains(fileKey) {
-            knownDownloads.insert(fileKey)
+        if let previousSize = knownDownloads[filename] {
+            // File already known — update tracked size if it changed (still downloading)
+            if fileSize != previousSize {
+                knownDownloads[filename] = fileSize
+            }
+        } else {
+            // New file — track it
+            knownDownloads[filename] = fileSize
 
             // Only count files modified in the last 60 seconds as new downloads
             if let modDate = attrs[.modificationDate] as? Date,
@@ -371,7 +374,7 @@ func initializeKnownDownloads() {
         let fullPath = "\(downloadsPath)/\(filename)"
         guard let attrs = try? fm.attributesOfItem(atPath: fullPath) else { continue }
         let fileSize = attrs[.size] as? UInt64 ?? 0
-        knownDownloads.insert("\(filename)|\(fileSize)")
+        knownDownloads[filename] = fileSize
     }
 }
 
