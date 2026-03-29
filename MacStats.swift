@@ -309,10 +309,17 @@ default:
     let w = 47 // content width inside box
 
     // Title box
+    let title = "M A C   L I F E T I M E"
+    let subtitle = "since \(s.startDate)"
+    let titlePadL = (w - title.count) / 2
+    let titlePadR = w - title.count - titlePadL
+    let subPadL = (w - subtitle.count) / 2
+    let subPadR = w - subtitle.count - subPadL
+
     print()
     print("  \(bold)\(brightCyan)┏\(String(repeating: "━", count: w))┓\(reset)")
-    print("  \(bold)\(brightCyan)┃\(reset)          \(bold)\(white)M A C   L I F E T I M E\(reset)           \(bold)\(brightCyan)┃\(reset)")
-    print("  \(bold)\(brightCyan)┃\(reset)            \(dim)since \(s.startDate)\(reset)              \(bold)\(brightCyan)┃\(reset)")
+    print("  \(bold)\(brightCyan)┃\(reset)\(String(repeating: " ", count: titlePadL))\(bold)\(white)\(title)\(reset)\(String(repeating: " ", count: titlePadR))\(bold)\(brightCyan)┃\(reset)")
+    print("  \(bold)\(brightCyan)┃\(reset)\(String(repeating: " ", count: subPadL))\(dim)\(subtitle)\(reset)\(String(repeating: " ", count: subPadR))\(bold)\(brightCyan)┃\(reset)")
     print("  \(bold)\(brightCyan)┗\(String(repeating: "━", count: w))┛\(reset)")
     print()
 
