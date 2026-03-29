@@ -150,6 +150,7 @@ var lastMouseX: Double = 0
 var lastMouseY: Double = 0
 var lastMouseInitialized = false
 var lastFrontmostApp: String = ""
+var lastModifierFlags: UInt64 = 0
 var runningApps: Set<String> = []
 
 // FSEvents file tracking
@@ -557,6 +558,18 @@ let callback: CGEventTapCallBack = { proxy, type, event, userInfo in
         pKeyCounts[keyName, default: 0] += 1
         pDailyKeystrokes[today(), default: 0] += 1
 
+    case .flagsChanged:
+        let keycode = event.getIntegerValueField(.keyboardEventKeycode)
+        let flags = event.flags.rawValue
+        // Only count key presses (flag added), not releases (flag removed)
+        if flags > lastModifierFlags || (keycode == 63 && flags != lastModifierFlags) {
+            let keyName = keycodeNames[keycode] ?? "Key\(keycode)"
+            pKeystrokes += 1
+            pKeyCounts[keyName, default: 0] += 1
+            pDailyKeystrokes[today(), default: 0] += 1
+        }
+        lastModifierFlags = flags
+
     case .scrollWheel:
         let deltaX = event.getDoubleValueField(.scrollWheelEventPointDeltaAxis1)
         let deltaY = event.getDoubleValueField(.scrollWheelEventPointDeltaAxis2)
@@ -610,6 +623,7 @@ startFSEventStream()
 // Event tap: keys + scroll + clicks + mouse movement
 var eventMask: CGEventMask = 0
 eventMask |= (1 << CGEventType.keyDown.rawValue)
+eventMask |= (1 << CGEventType.flagsChanged.rawValue)
 eventMask |= (1 << CGEventType.scrollWheel.rawValue)
 eventMask |= (1 << CGEventType.leftMouseDown.rawValue)
 eventMask |= (1 << CGEventType.rightMouseDown.rawValue)
