@@ -155,7 +155,7 @@ Then remove `macstats-daemon` from both:
 
 - Cannot capture keystrokes on the lock screen or FileVault pre-boot (macOS blocks this for security)
 - Power tracking is estimated from battery sensor data, not wall power — accurate to ~5-10%
-- Downloads are detected via macOS quarantine attribute — covers browsers and system curl, but not git, wget, or scp
+- Downloads are detected via macOS quarantine attribute in user-facing directories (~/Downloads, ~/Desktop, ~/Documents) — covers browsers and system curl, but not git, wget, or scp
 - A force shutdown (holding power 5+ seconds) can lose up to 10 seconds of data
 
 ## License
