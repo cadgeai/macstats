@@ -483,12 +483,10 @@ let fsCallback: FSEventStreamCallback = { _, _, numEvents, eventPaths, eventFlag
         // Skip our own data file
         if path.contains(".macstats") { continue }
 
-        // Item created or modified
-        if flags & UInt32(kFSEventStreamEventFlagItemIsFile) != 0 {
-            if flags & UInt32(kFSEventStreamEventFlagItemCreated) != 0 ||
-               flags & UInt32(kFSEventStreamEventFlagItemModified) != 0 {
-                processNewFile(path)
-            }
+        // Only react to newly created files (not modifications to existing ones)
+        if flags & UInt32(kFSEventStreamEventFlagItemIsFile) != 0 &&
+           flags & UInt32(kFSEventStreamEventFlagItemCreated) != 0 {
+            processNewFile(path)
         }
     }
 }
