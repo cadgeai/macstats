@@ -24,8 +24,8 @@ Every keystroke, every click, every pixel your cursor moves, every watt your mac
 
 ```
   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-  ┃          M A C   L I F E T I M E               ┃
-  ┃            since 2026-01-01                    ┃
+  ┃          M A C   L I F E T I M E              ┃
+  ┃            since 2025-04-09                   ┃
   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
        2,847,391          743,218          94d 7h 23m
@@ -83,22 +83,9 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Then grant permissions (required to capture keystrokes, clicks, and cursor movement):
+The installer compiles, installs, code-signs, and starts the daemon automatically. It will open System Settings and guide you through granting **Accessibility** and **Input Monitoring** permissions — just follow the on-screen instructions.
 
-1. **System Settings → Privacy & Security → Accessibility**
-   - Click **+**, press **Cmd+Shift+G**, type `/usr/local/bin/`
-   - Select `macstats-daemon`, click Open, toggle ON
-2. **System Settings → Privacy & Security → Input Monitoring**
-   - Same steps — add `/usr/local/bin/macstats-daemon` and toggle ON
-
-Restart the daemon to pick up the permission:
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.macstats.daemon.plist
-launchctl load ~/Library/LaunchAgents/com.macstats.daemon.plist
-```
-
-Verify:
+Once complete, verify:
 
 ```bash
 macstats
@@ -122,7 +109,7 @@ macstats --help       show all commands
 
 ## How it works
 
-- **CGEventTap** listens for keystrokes, clicks, scroll, and cursor movement
+- **CGEventTap** listens for keystrokes (including modifier keys via `flagsChanged`), clicks, scroll, and cursor movement
 - **NSWorkspace** tracks frontmost app and app launches
 - **IOKit** reads battery amperage and voltage every 10 seconds
 - **netstat** polls network interface bytes (deduplicated per interface)
@@ -146,14 +133,23 @@ macstats --help       show all commands
 ## Uninstall
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.macstats.daemon.plist
-rm ~/Library/LaunchAgents/com.macstats.daemon.plist
-sudo rm /usr/local/bin/macstats-daemon /usr/local/bin/macstats
-chflags nouchg ~/.macstats/data.dat
-rm -rf ~/.macstats
+# 1. Remove plist first (prevents daemon from restarting)
+rm -f ~/Library/LaunchAgents/com.macstats.daemon.plist
+
+# 2. Kill the daemon
+pkill -9 macstats-daemon 2>/dev/null
+
+# 3. Remove binaries
+sudo rm -f /usr/local/bin/macstats-daemon /usr/local/bin/macstats
+
+# 4. Unlock and remove data
+sudo chflags nouchg ~/.macstats/data.dat
+sudo rm -rf ~/.macstats
 ```
 
-Remove `macstats-daemon` from System Settings → Accessibility.
+Then remove `macstats-daemon` from both:
+- **System Settings → Privacy & Security → Accessibility**
+- **System Settings → Privacy & Security → Input Monitoring**
 
 ## Limitations
 
