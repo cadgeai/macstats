@@ -209,13 +209,12 @@ case "--keys":
     let sorted = s.keyCounts.sorted { $0.value > $1.value }
     header("Per-Key Breakdown")
     let maxVal = sorted.first?.value ?? 1
-    for (i, (key, count)) in sorted.prefix(40).enumerated() {
-        let rank = "\(dim)\(String(format: "%2d", i + 1)).\(reset)"
+    for (i, (key, count)) in sorted.enumerated() {
+        let rank = "\(dim)\(String(format: "%3d", i + 1)).\(reset)"
         let keyStr = "\(bold)\(white)\(key)\(reset)"
         let countStr = "\(cyan)\(num(count))\(reset)"
         print("  \(rank) \(pad(keyStr, 18)) \(pad(countStr, 12, right: true))  \(bar(count, max: maxVal))")
     }
-    if sorted.count > 40 { print("\n  \(dim)... and \(sorted.count - 40) more keys\(reset)") }
     print()
 
 case "--clicks":
@@ -323,16 +322,45 @@ default:
     print("  \(bold)\(brightCyan)┗\(String(repeating: "━", count: w))┛\(reset)")
     print()
 
-    // Hero stats
-    print("       \(bold)\(brightCyan)\(num(s.totalKeystrokes))\(reset)             \(bold)\(brightMagenta)\(num(s.totalClicks))\(reset)             \(bold)\(brightGreen)\(formatTime(s.totalScreenOnSeconds))\(reset)")
-    print("    \(dim)keystrokes\(reset)          \(dim)clicks\(reset)           \(dim)screen time\(reset)")
+    // Hero stats — dynamically centered
+    let heroKeys = num(s.totalKeystrokes)
+    let heroClicks = num(s.totalClicks)
+    let heroScreen = formatTime(s.totalScreenOnSeconds)
+    let labelKeys = "keystrokes"
+    let labelClicks = "clicks"
+    let labelScreen = "screen time"
+
+    // Each hero column is as wide as the wider of number/label + padding
+    let col1 = max(heroKeys.count, labelKeys.count)
+    let col2 = max(heroClicks.count, labelClicks.count)
+    let col3 = max(heroScreen.count, labelScreen.count)
+    let gap = 6
+
+    func centerIn(_ text: String, _ width: Int) -> String {
+        let padL = (width - text.count) / 2
+        let padR = width - text.count - padL
+        return String(repeating: " ", count: padL) + text + String(repeating: " ", count: padR)
+    }
+
+    let heroLine = "  \(bold)\(brightCyan)\(centerIn(heroKeys, col1))\(reset)\(String(repeating: " ", count: gap))\(bold)\(brightMagenta)\(centerIn(heroClicks, col2))\(reset)\(String(repeating: " ", count: gap))\(bold)\(brightGreen)\(centerIn(heroScreen, col3))\(reset)"
+    let labelLine = "  \(dim)\(centerIn(labelKeys, col1))\(reset)\(String(repeating: " ", count: gap))\(dim)\(centerIn(labelClicks, col2))\(reset)\(String(repeating: " ", count: gap))\(dim)\(centerIn(labelScreen, col3))\(reset)"
+    print(heroLine)
+    print(labelLine)
     print()
+
+    // Value column position — all values start at this column
+    let valCol = 24
+
+    func row(_ pipe: String, _ label: String, _ value: String, _ extra: String = "") {
+        let labelPad = pad(label, valCol - 5)
+        print("  \(pipe)│\(reset)  \(dim)\(labelPad)\(reset)\(value)\(extra)")
+    }
 
     // Keyboard
     print("  \(bold)\(brightCyan)── ⌨️  KEYBOARD \(String(repeating: "─", count: 31))\(reset)")
-    print("  \(brightCyan)│\(reset)  \(dim)today\(reset)               \(bold)\(brightCyan)\(num(todayKeys))\(reset)")
+    row(brightCyan, "today", "\(bold)\(brightCyan)\(num(todayKeys))\(reset)")
     if let top = topKey {
-        print("  \(brightCyan)│\(reset)  \(dim)most pressed\(reset)         \(bold)\(brightCyan)\(top.key)\(reset) \(dim)(\(num(top.value)))\(reset)")
+        row(brightCyan, "most pressed", "\(bold)\(brightCyan)\(top.key)\(reset) \(dim)(\(num(top.value)))\(reset)")
     }
     print("  \(brightCyan)│\(reset)")
 
@@ -340,30 +368,30 @@ default:
     print("  \(bold)\(brightMagenta)── 🖱️  TRACKPAD \(String(repeating: "─", count: 31))\(reset)")
     let clickMax = s.clickCounts.values.max() ?? 1
     for (click, count) in s.clickCounts.sorted(by: { $0.value > $1.value }) {
-        print("  \(brightMagenta)│\(reset)  \(dim)\(pad(click, 20))\(reset) \(bar(count, max: clickMax, width: 15, color: brightMagenta))  \(bold)\(brightMagenta)\(num(count))\(reset)")
+        row(brightMagenta, click, "\(bar(count, max: clickMax, width: 15, color: brightMagenta))  \(bold)\(brightMagenta)\(num(count))\(reset)")
     }
     print("  \(brightMagenta)│\(reset)")
 
     // Movement
     print("  \(bold)\(brightBlue)── 🏃 MOVEMENT \(String(repeating: "─", count: 32))\(reset)")
     if mouseMiles >= 0.01 {
-        print("  \(brightBlue)│\(reset)  \(dim)cursor\(reset)              \(bold)\(brightBlue)\(num(mouseMiles, decimals: 2))\(reset) \(dim)miles\(reset)")
+        row(brightBlue, "cursor", "\(bold)\(brightBlue)\(num(mouseMiles, decimals: 2))\(reset) \(dim)miles\(reset)")
     } else {
         let feet = mouseMiles * 5280
-        print("  \(brightBlue)│\(reset)  \(dim)cursor\(reset)              \(bold)\(brightBlue)\(num(feet, decimals: 1))\(reset) \(dim)feet\(reset)")
+        row(brightBlue, "cursor", "\(bold)\(brightBlue)\(num(feet, decimals: 1))\(reset) \(dim)feet\(reset)")
     }
     if scrollMiles >= 0.01 {
-        print("  \(brightBlue)│\(reset)  \(dim)scroll\(reset)              \(bold)\(brightBlue)\(num(scrollMiles, decimals: 2))\(reset) \(dim)miles\(reset)")
+        row(brightBlue, "scroll", "\(bold)\(brightBlue)\(num(scrollMiles, decimals: 2))\(reset) \(dim)miles\(reset)")
     } else {
         let feet = scrollMiles * 5280
-        print("  \(brightBlue)│\(reset)  \(dim)scroll\(reset)              \(bold)\(brightBlue)\(num(feet, decimals: 1))\(reset) \(dim)feet\(reset)")
+        row(brightBlue, "scroll", "\(bold)\(brightBlue)\(num(feet, decimals: 1))\(reset) \(dim)feet\(reset)")
     }
     print("  \(brightBlue)│\(reset)")
 
     // Screen time
     print("  \(bold)\(brightGreen)── 🖥️  SCREEN TIME \(String(repeating: "─", count: 28))\(reset)")
-    print("  \(brightGreen)│\(reset)  \(dim)lifetime\(reset)            \(bold)\(brightGreen)\(formatTime(s.totalScreenOnSeconds))\(reset)")
-    print("  \(brightGreen)│\(reset)  \(dim)today\(reset)               \(bold)\(brightGreen)\(formatTime(todayScreen))\(reset)")
+    row(brightGreen, "lifetime", "\(bold)\(brightGreen)\(formatTime(s.totalScreenOnSeconds))\(reset)")
+    row(brightGreen, "today", "\(bold)\(brightGreen)\(formatTime(todayScreen))\(reset)")
     print("  \(brightGreen)│\(reset)")
 
     // Top apps
@@ -373,7 +401,8 @@ default:
         let appMax = sortedApps.first?.value ?? 1
         for (i, (app, seconds)) in sortedApps.prefix(5).enumerated() {
             let medal = i == 0 ? "🥇" : i == 1 ? "🥈" : i == 2 ? "🥉" : "  "
-            print("  \(brightYellow)│\(reset)  \(medal) \(bold)\(white)\(pad(app, 16))\(reset) \(bar(seconds, max: appMax, width: 12, color: brightYellow))  \(bold)\(brightYellow)\(formatTime(seconds))\(reset)")
+            let appLabel = "\(medal) \(app)"
+            row(brightYellow, appLabel, "\(bar(seconds, max: appMax, width: 12, color: brightYellow))  \(bold)\(brightYellow)\(formatTime(seconds))\(reset)")
         }
         print("  \(brightYellow)│\(reset)")
     }
@@ -383,34 +412,34 @@ default:
         print("  \(bold)\(yellow)── 🚀 LAUNCHES \(String(repeating: "─", count: 32))\(reset)")
         let sortedLaunches = s.appLaunchCounts.sorted { $0.value > $1.value }
         for (app, count) in sortedLaunches.prefix(5) {
-            print("  \(yellow)│\(reset)  \(dim)·\(reset) \(bold)\(white)\(pad(app, 18))\(reset) \(bold)\(yellow)\(num(count))\(reset)")
+            row(yellow, "· \(app)", "\(bold)\(yellow)\(num(count))\(reset)")
         }
         print("  \(yellow)│\(reset)")
     }
 
     // Network
     print("  \(bold)\(brightBlue)── 🌐 NETWORK \(String(repeating: "─", count: 33))\(reset)")
-    print("  \(brightBlue)│\(reset)  \(brightGreen)↓\(reset) \(dim)downloaded\(reset)       \(bold)\(brightGreen)\(formatBytes(s.totalNetworkBytesIn))\(reset)")
-    print("  \(brightBlue)│\(reset)  \(brightRed)↑\(reset) \(dim)uploaded\(reset)         \(bold)\(brightRed)\(formatBytes(s.totalNetworkBytesOut))\(reset)")
+    row(brightBlue, "↓ downloaded", "\(bold)\(brightGreen)\(formatBytes(s.totalNetworkBytesIn))\(reset)")
+    row(brightBlue, "↑ uploaded", "\(bold)\(brightRed)\(formatBytes(s.totalNetworkBytesOut))\(reset)")
     print("  \(brightBlue)│\(reset)")
 
     // Power
     print("  \(bold)\(brightYellow)── ⚡ POWER \(String(repeating: "─", count: 35))\(reset)")
-    print("  \(brightYellow)│\(reset)  \(dim)consumed\(reset)            \(bold)\(brightYellow)\(num(kWh, decimals: 2))\(reset) \(dim)kWh\(reset)")
-    print("  \(brightYellow)│\(reset)  \(dim)on AC\(reset)               \(bold)\(brightGreen)\(formatTime(s.totalSecondsPluggedIn))\(reset) \(brightGreen)●\(reset)")
-    print("  \(brightYellow)│\(reset)  \(dim)on battery\(reset)          \(bold)\(brightRed)\(formatTime(s.totalSecondsOnBattery))\(reset) \(brightRed)●\(reset)")
+    row(brightYellow, "consumed", "\(bold)\(brightYellow)\(num(kWh, decimals: 2))\(reset) \(dim)kWh\(reset)")
+    row(brightYellow, "on AC", "\(bold)\(brightGreen)\(formatTime(s.totalSecondsPluggedIn))\(reset) \(brightGreen)●\(reset)")
+    row(brightYellow, "on battery", "\(bold)\(brightRed)\(formatTime(s.totalSecondsOnBattery))\(reset) \(brightRed)●\(reset)")
     print("  \(brightYellow)│\(reset)")
 
     // Downloads
     print("  \(bold)\(magenta)── 📥 DOWNLOADS \(String(repeating: "─", count: 31))\(reset)")
-    print("  \(magenta)│\(reset)  \(dim)files\(reset)               \(bold)\(brightMagenta)\(num(s.totalFilesDownloaded))\(reset)")
-    print("  \(magenta)│\(reset)  \(dim)total size\(reset)          \(bold)\(brightMagenta)\(formatBytes(s.totalDownloadedBytes))\(reset)")
+    row(magenta, "files", "\(bold)\(brightMagenta)\(num(s.totalFilesDownloaded))\(reset)")
+    row(magenta, "total size", "\(bold)\(brightMagenta)\(formatBytes(s.totalDownloadedBytes))\(reset)")
     print("  \(magenta)│\(reset)")
 
     // Files created
     print("  \(bold)\(cyan)── 📁 FILES CREATED \(String(repeating: "─", count: 27))\(reset)")
-    print("  \(cyan)│\(reset)  \(dim)files\(reset)               \(bold)\(brightCyan)\(num(s.totalFilesCreated))\(reset)")
-    print("  \(cyan)│\(reset)  \(dim)total size\(reset)          \(bold)\(brightCyan)\(formatBytes(s.totalFilesCreatedBytes))\(reset)")
+    row(cyan, "files", "\(bold)\(brightCyan)\(num(s.totalFilesCreated))\(reset)")
+    row(cyan, "total size", "\(bold)\(brightCyan)\(formatBytes(s.totalFilesCreatedBytes))\(reset)")
     print()
 
     print("  \(dim)run \(brightCyan)macstats --help\(dim) for detailed views\(reset)")
