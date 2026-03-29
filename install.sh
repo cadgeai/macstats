@@ -139,18 +139,61 @@ cp "$SCRIPT_DIR/$PLIST_NAME.plist" "$PLIST_DIR/"
 launchctl load "$PLIST_DIR/$PLIST_NAME.plist"
 echo "  ✓ Daemon running"
 
+# ANSI colors
+RED='\033[1;31m'
+YEL='\033[1;33m'
+CYN='\033[1;36m'
+WHT='\033[1;97m'
+DIM='\033[2m'
+RST='\033[0m'
+BG_RED='\033[41;97;1m'
+
 echo ""
-echo "  ══════════════════════════════════════════════"
+echo -e "  ${BG_RED}                                                ${RST}"
+echo -e "  ${BG_RED}   ⚠️  ACTION REQUIRED — DO THIS NOW            ${RST}"
+echo -e "  ${BG_RED}                                                ${RST}"
 echo ""
-echo "  REQUIRED: Grant Accessibility access"
+echo -e "  ${WHT}macstats needs two permissions to track your input.${RST}"
+echo -e "  ${WHT}Opening System Settings now...${RST}"
 echo ""
-echo "  System Settings → Privacy & Security → Accessibility"
-echo "  Click + → Add /usr/local/bin/macstats-daemon"
+
+# Open Accessibility settings
+open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+
+echo -e "  ${YEL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+echo -e "  ${YEL}  STEP 1: ACCESSIBILITY${RST}"
+echo -e "  ${YEL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
 echo ""
-echo "  Then restart the daemon:"
-echo "    launchctl unload ~/Library/LaunchAgents/$PLIST_NAME.plist"
-echo "    launchctl load ~/Library/LaunchAgents/$PLIST_NAME.plist"
+echo -e "  ${CYN}1.${RST} Click the ${WHT}+${RST} button at the bottom"
+echo -e "  ${CYN}2.${RST} Press ${WHT}Cmd+Shift+G${RST} and type: ${WHT}/usr/local/bin/${RST}"
+echo -e "  ${CYN}3.${RST} Select ${WHT}macstats-daemon${RST} → click ${WHT}Open${RST}"
+echo -e "  ${CYN}4.${RST} Make sure the toggle is ${WHT}ON${RST}"
 echo ""
-echo "  View stats:  macstats"
-echo "  All options: macstats --help"
+echo -e "  ${DIM}Press Enter when done...${RST}"
+read -r
+
+# Open Input Monitoring settings
+open "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+
+echo -e "  ${YEL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+echo -e "  ${YEL}  STEP 2: INPUT MONITORING${RST}"
+echo -e "  ${YEL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+echo ""
+echo -e "  ${CYN}1.${RST} Click the ${WHT}+${RST} button at the bottom"
+echo -e "  ${CYN}2.${RST} Press ${WHT}Cmd+Shift+G${RST} and type: ${WHT}/usr/local/bin/${RST}"
+echo -e "  ${CYN}3.${RST} Select ${WHT}macstats-daemon${RST} → click ${WHT}Open${RST}"
+echo -e "  ${CYN}4.${RST} Make sure the toggle is ${WHT}ON${RST}"
+echo ""
+echo -e "  ${DIM}Press Enter when done...${RST}"
+read -r
+
+# Restart daemon to pick up permissions
+launchctl unload "$PLIST_DIR/$PLIST_NAME.plist" 2>/dev/null || true
+launchctl load "$PLIST_DIR/$PLIST_NAME.plist"
+echo -e "  ${CYN}✓${RST} Daemon restarted with new permissions"
+echo ""
+echo -e "  ${WHT}All done!${RST} Try it now:"
+echo ""
+echo -e "  ${CYN}  macstats${RST}              ${DIM}full overview${RST}"
+echo -e "  ${CYN}  macstats --help${RST}       ${DIM}all commands${RST}"
 echo ""
