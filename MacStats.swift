@@ -372,7 +372,7 @@ default:
     print()
 
     // Value column position — all values start at this column
-    let valCol = 24
+    let valCol = 28
 
     func row(_ pipe: String, _ label: String, _ value: String, _ extra: String = "") {
         let labelPad = pad(label, valCol - 5)
