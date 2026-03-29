@@ -136,8 +136,8 @@ func formatBytes(_ bytes: UInt64) -> String {
     let units = ["B", "KB", "MB", "GB", "TB", "PB"]
     var value = Double(bytes)
     var i = 0
-    while value >= 1024 && i < units.count - 1 {
-        value /= 1024
+    while value >= 1000 && i < units.count - 1 {
+        value /= 1000
         i += 1
     }
     if i == 0 { return "\(bytes) B" }
