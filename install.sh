@@ -142,11 +142,31 @@ echo "  ✓ Daemon running"
 # ANSI colors
 RED='\033[1;31m'
 YEL='\033[1;33m'
+GRN='\033[1;32m'
 CYN='\033[1;36m'
 WHT='\033[1;97m'
 DIM='\033[2m'
 RST='\033[0m'
 BG_RED='\033[41;97;1m'
+CLR='\033[2K\r'
+
+# Build a tiny Swift helper that tests if event tap can be created
+cat > /tmp/.ms_check.swift << 'CHECKEOF'
+import Foundation
+import CoreGraphics
+let tap = CGEvent.tapCreate(
+    tap: .cgSessionEventTap,
+    place: .headInsertEventTap,
+    options: .listenOnly,
+    eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+    callback: { _, _, event, _ in Unmanaged.passRetained(event) },
+    userInfo: nil
+)
+exit(tap != nil ? 0 : 1)
+CHECKEOF
+swiftc -O -o /tmp/.ms_check /tmp/.ms_check.swift -framework CoreGraphics 2>/dev/null
+
+SPINNER=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 
 echo ""
 echo -e "  ${BG_RED}                                                ${RST}"
@@ -154,14 +174,13 @@ echo -e "  ${BG_RED}   ⚠️  ACTION REQUIRED — DO THIS NOW            ${RST}
 echo -e "  ${BG_RED}                                                ${RST}"
 echo ""
 echo -e "  ${WHT}macstats needs two permissions to track your input.${RST}"
-echo -e "  ${WHT}Opening System Settings now...${RST}"
 echo ""
 
-# Open Accessibility settings
+# --- STEP 1: Accessibility ---
 open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 
 echo -e "  ${YEL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-echo -e "  ${YEL}  STEP 1: ACCESSIBILITY${RST}"
+echo -e "  ${YEL}  STEP 1 of 2: ACCESSIBILITY${RST}"
 echo -e "  ${YEL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
 echo ""
 echo -e "  ${CYN}1.${RST} Click the ${WHT}+${RST} button at the bottom"
@@ -169,14 +188,26 @@ echo -e "  ${CYN}2.${RST} Press ${WHT}Cmd+Shift+G${RST} and type: ${WHT}/usr/loc
 echo -e "  ${CYN}3.${RST} Select ${WHT}macstats-daemon${RST} → click ${WHT}Open${RST}"
 echo -e "  ${CYN}4.${RST} Make sure the toggle is ${WHT}ON${RST}"
 echo ""
-echo -e "  ${DIM}Press Enter when done...${RST}"
-read -r
 
-# Open Input Monitoring settings
+# Poll every 1 second until event tap works (accessibility granted)
+i=0
+while true; do
+    if /tmp/.ms_check 2>/dev/null; then
+        echo -e "${CLR}  ${GRN}✓ Accessibility permission granted!${RST}"
+        break
+    fi
+    echo -ne "${CLR}  ${DIM}${SPINNER[$((i % 10))]} Waiting for Accessibility permission...${RST}"
+    sleep 1
+    i=$((i + 1))
+done
+
+echo ""
+
+# --- STEP 2: Input Monitoring ---
 open "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
 
 echo -e "  ${YEL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-echo -e "  ${YEL}  STEP 2: INPUT MONITORING${RST}"
+echo -e "  ${YEL}  STEP 2 of 2: INPUT MONITORING${RST}"
 echo -e "  ${YEL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
 echo ""
 echo -e "  ${CYN}1.${RST} Click the ${WHT}+${RST} button at the bottom"
@@ -184,16 +215,29 @@ echo -e "  ${CYN}2.${RST} Press ${WHT}Cmd+Shift+G${RST} and type: ${WHT}/usr/loc
 echo -e "  ${CYN}3.${RST} Select ${WHT}macstats-daemon${RST} → click ${WHT}Open${RST}"
 echo -e "  ${CYN}4.${RST} Make sure the toggle is ${WHT}ON${RST}"
 echo ""
+echo -e "  ${DIM}(Input Monitoring cannot be auto-detected.${RST}"
+echo -e "  ${DIM} It will be verified when the daemon starts.)${RST}"
+echo ""
 echo -e "  ${DIM}Press Enter when done...${RST}"
 read -r
+echo -e "  ${GRN}✓ Input Monitoring configured!${RST}"
+echo ""
 
 # Restart daemon to pick up permissions
 launchctl unload "$PLIST_DIR/$PLIST_NAME.plist" 2>/dev/null || true
 launchctl load "$PLIST_DIR/$PLIST_NAME.plist"
-echo -e "  ${CYN}✓${RST} Daemon restarted with new permissions"
+
+# Clean up
+rm -f /tmp/.ms_check /tmp/.ms_check.swift
+
+echo -e "  ${GRN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+echo -e "  ${GRN}  ✓ INSTALLATION COMPLETE${RST}"
+echo -e "  ${GRN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
 echo ""
-echo -e "  ${WHT}All done!${RST} Try it now:"
+echo -e "  ${WHT}macstats is now tracking in the background.${RST}"
+echo -e "  ${WHT}Close this terminal and use your Mac normally.${RST}"
 echo ""
+echo -e "  ${WHT}To view your stats anytime:${RST}"
 echo -e "  ${CYN}  macstats${RST}              ${DIM}full overview${RST}"
 echo -e "  ${CYN}  macstats --help${RST}       ${DIM}all commands${RST}"
 echo ""
