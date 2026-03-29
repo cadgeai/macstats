@@ -169,9 +169,32 @@ func bar(_ value: UInt64, max maxVal: UInt64, width: Int = 25, color: String = c
     return "\(color)\(String(repeating: "▓", count: filled))\(gray)\(String(repeating: "░", count: empty))\(reset)"
 }
 
-func pad(_ s: String, _ width: Int, right: Bool = false) -> String {
+func displayWidth(_ s: String) -> Int {
+    // Strip ANSI codes first
     let stripped = s.replacingOccurrences(of: "\u{001B}\\[[0-9;]*m", with: "", options: .regularExpression)
-    let need = max(0, width - stripped.count)
+    var w = 0
+    for scalar in stripped.unicodeScalars {
+        let v = scalar.value
+        // Zero-width characters — skip
+        if (v >= 0xFE00 && v <= 0xFE0F) ||          // Variation selectors
+           v == 0x200D ||                             // ZWJ
+           v == 0x20E3 {                              // Combining enclosing keycap
+            continue
+        }
+        // Emoji and wide characters take 2 columns
+        if v >= 0x1F000 ||                            // Supplemental symbols & emoji
+           (v >= 0x1F300 && v <= 0x1FAFF) {           // Misc symbols & pictographs
+            w += 2
+        } else {
+            w += 1
+        }
+    }
+    return w
+}
+
+func pad(_ s: String, _ width: Int, right: Bool = false) -> String {
+    let dw = displayWidth(s)
+    let need = max(0, width - dw)
     if right {
         return String(repeating: " ", count: need) + s
     }
