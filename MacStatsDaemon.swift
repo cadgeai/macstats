@@ -494,7 +494,7 @@ let fsCallback: FSEventStreamCallback = { _, _, numEvents, eventPaths, eventFlag
 }
 
 func startFSEventStream() {
-    var pathsToWatch = ["/Users" as CFString] as CFArray
+    let pathsToWatch = ["/Users" as CFString] as CFArray
     let latency: CFTimeInterval = 2.0
 
     var context = FSEventStreamContext(version: 0, info: nil, retain: nil, release: nil, copyDescription: nil)
@@ -510,7 +510,8 @@ func startFSEventStream() {
     ) else { return }
 
     fsEventStream = stream
-    FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+    let queue = DispatchQueue(label: "com.macstats.fsevents", qos: .utility)
+    FSEventStreamSetDispatchQueue(stream, queue)
     FSEventStreamStart(stream)
 }
 

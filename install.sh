@@ -28,7 +28,7 @@ else
 fi
 
 echo "  Compiling daemon..."
-swiftc -O -o "$SCRIPT_DIR/macstats-daemon" "$SCRIPT_DIR/MacStatsDaemon.swift" -framework Cocoa -framework CoreGraphics 2>/dev/null
+swiftc -O -o "$SCRIPT_DIR/macstats-daemon" "$SCRIPT_DIR/MacStatsDaemon.swift" -framework Cocoa -framework CoreGraphics -framework CoreServices 2>/dev/null
 echo "  Compiling CLI..."
 swiftc -O -o "$SCRIPT_DIR/macstats" "$SCRIPT_DIR/MacStats.swift" 2>/dev/null
 echo "  ✓ Compiled"
@@ -38,6 +38,7 @@ sudo cp "$SCRIPT_DIR/macstats-daemon" /usr/local/bin/macstats-daemon
 sudo cp "$SCRIPT_DIR/macstats" /usr/local/bin/macstats
 sudo chmod +x /usr/local/bin/macstats-daemon
 sudo chmod +x /usr/local/bin/macstats
+sudo codesign -f -s - /usr/local/bin/macstats-daemon 2>/dev/null
 echo "  ✓ Installed to /usr/local/bin"
 
 if [ "$SKIP_INIT" = false ]; then
