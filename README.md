@@ -83,11 +83,13 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Then grant Accessibility access (required to capture keystrokes and clicks):
+Then grant permissions (required to capture keystrokes, clicks, and cursor movement):
 
 1. **System Settings → Privacy & Security → Accessibility**
-2. Click **+**, press **Cmd+Shift+G**, type `/usr/local/bin/`
-3. Select `macstats-daemon`, click Open, toggle ON
+   - Click **+**, press **Cmd+Shift+G**, type `/usr/local/bin/`
+   - Select `macstats-daemon`, click Open, toggle ON
+2. **System Settings → Privacy & Security → Input Monitoring**
+   - Same steps — add `/usr/local/bin/macstats-daemon` and toggle ON
 
 Restart the daemon to pick up the permission:
 
