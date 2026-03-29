@@ -379,9 +379,27 @@ func getPowerState() -> PowerState {
 // MARK: - FSEvents File Tracking
 
 func hasQuarantineAttribute(_ path: String) -> Bool {
-    // Check for com.apple.quarantine extended attribute
     let size = getxattr(path, "com.apple.quarantine", nil, 0, 0, 0)
     return size >= 0
+}
+
+// Only count quarantined files in user-facing directories as "downloads"
+let downloadDirs: [String] = {
+    let home = NSHomeDirectory()
+    return [
+        "\(home)/Downloads",
+        "\(home)/Desktop",
+        "\(home)/Documents",
+        "/tmp",
+        "/var/folders",
+    ]
+}()
+
+func isDownloadLocation(_ path: String) -> Bool {
+    for dir in downloadDirs {
+        if path.hasPrefix(dir) { return true }
+    }
+    return false
 }
 
 func getFileInode(_ path: String) -> UInt64? {
@@ -410,12 +428,12 @@ func processNewFile(_ path: String) {
             trackedFiles[path]!.stableCount = 0
         } else {
             // Different inode = file was deleted and recreated (re-download)
-            let isDownload = hasQuarantineAttribute(path)
+            let isDownload = isDownloadLocation(path) && hasQuarantineAttribute(path)
             trackedFiles[path] = TrackedFile(inode: inode, lastSize: fileSize, stableCount: 0, counted: false, isDownload: isDownload)
         }
     } else {
         // Brand new file
-        let isDownload = hasQuarantineAttribute(path)
+        let isDownload = isDownloadLocation(path) && hasQuarantineAttribute(path)
         trackedFiles[path] = TrackedFile(inode: inode, lastSize: fileSize, stableCount: 0, counted: false, isDownload: isDownload)
     }
 }
@@ -457,8 +475,8 @@ func processStableFiles() {
 
         // Count after size stable for 2 consecutive checks (20+ seconds)
         if trackedFiles[path]!.stableCount >= 2 {
-            // Re-check quarantine at final count time (attribute may be set after creation)
-            if hasQuarantineAttribute(path) {
+            // Re-check at final count time (quarantine may be set after creation)
+            if isDownloadLocation(path) && hasQuarantineAttribute(path) {
                 trackedFiles[path]!.isDownload = true
             }
             countFile(path: path, file: trackedFiles[path]!)
