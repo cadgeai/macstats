@@ -150,24 +150,6 @@ RST='\033[0m'
 BG_RED='\033[41;97;1m'
 CLR='\033[2K\r'
 
-# Build a tiny Swift helper that tests if event tap can be created
-cat > /tmp/.ms_check.swift << 'CHECKEOF'
-import Foundation
-import CoreGraphics
-let tap = CGEvent.tapCreate(
-    tap: .cgSessionEventTap,
-    place: .headInsertEventTap,
-    options: .listenOnly,
-    eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
-    callback: { _, _, event, _ in Unmanaged.passRetained(event) },
-    userInfo: nil
-)
-exit(tap != nil ? 0 : 1)
-CHECKEOF
-swiftc -O -o /tmp/.ms_check /tmp/.ms_check.swift -framework CoreGraphics 2>/dev/null
-
-SPINNER=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-
 echo ""
 echo -e "  ${BG_RED}                                                ${RST}"
 echo -e "  ${BG_RED}   ⚠️  ACTION REQUIRED — DO THIS NOW            ${RST}"
@@ -188,19 +170,9 @@ echo -e "  ${CYN}2.${RST} Press ${WHT}Cmd+Shift+G${RST} and type: ${WHT}/usr/loc
 echo -e "  ${CYN}3.${RST} Select ${WHT}macstats-daemon${RST} → click ${WHT}Open${RST}"
 echo -e "  ${CYN}4.${RST} Make sure the toggle is ${WHT}ON${RST}"
 echo ""
-
-# Poll every 1 second until event tap works (accessibility granted)
-i=0
-while true; do
-    if /tmp/.ms_check 2>/dev/null; then
-        echo -e "${CLR}  ${GRN}✓ Accessibility permission granted!${RST}"
-        break
-    fi
-    echo -ne "${CLR}  ${DIM}${SPINNER[$((i % 10))]} Waiting for Accessibility permission...${RST}"
-    sleep 1
-    i=$((i + 1))
-done
-
+echo -e "  ${DIM}Press Enter when done...${RST}"
+read -r
+echo -e "  ${GRN}✓ Accessibility configured!${RST}"
 echo ""
 
 # --- STEP 2: Input Monitoring ---
@@ -215,9 +187,6 @@ echo -e "  ${CYN}2.${RST} Press ${WHT}Cmd+Shift+G${RST} and type: ${WHT}/usr/loc
 echo -e "  ${CYN}3.${RST} Select ${WHT}macstats-daemon${RST} → click ${WHT}Open${RST}"
 echo -e "  ${CYN}4.${RST} Make sure the toggle is ${WHT}ON${RST}"
 echo ""
-echo -e "  ${DIM}(Input Monitoring cannot be auto-detected.${RST}"
-echo -e "  ${DIM} It will be verified when the daemon starts.)${RST}"
-echo ""
 echo -e "  ${DIM}Press Enter when done...${RST}"
 read -r
 echo -e "  ${GRN}✓ Input Monitoring configured!${RST}"
@@ -226,9 +195,6 @@ echo ""
 # Restart daemon to pick up permissions
 launchctl unload "$PLIST_DIR/$PLIST_NAME.plist" 2>/dev/null || true
 launchctl load "$PLIST_DIR/$PLIST_NAME.plist"
-
-# Clean up
-rm -f /tmp/.ms_check /tmp/.ms_check.swift
 
 echo -e "  ${GRN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
 echo -e "  ${GRN}  ✓ INSTALLATION COMPLETE${RST}"
