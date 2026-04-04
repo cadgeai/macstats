@@ -184,7 +184,8 @@ let keycodeNames: [Int64: String] = [
     88: "Numpad6", 89: "Numpad7", 91: "Numpad8", 92: "Numpad9",
     96: "F5", 97: "F6", 98: "F7", 99: "F3", 100: "F8", 101: "F9",
     103: "F11", 105: "F13", 107: "F14", 109: "F10", 111: "F12",
-    113: "F15", 115: "Home", 116: "PageUp", 117: "ForwardDelete",
+    113: "F15", 106: "F16", 64: "F17", 79: "F18", 80: "F19", 90: "F20",
+    115: "Home", 116: "PageUp", 117: "ForwardDelete",
     118: "F4", 119: "End", 120: "F2", 121: "PageDown", 122: "F1",
     123: "LeftArrow", 124: "RightArrow", 125: "DownArrow", 126: "UpArrow"
 ]
@@ -618,7 +619,33 @@ let callback: CGEventTapCallBack = { proxy, type, event, userInfo in
         lastMouseInitialized = true
 
     default:
-        break
+        // System-defined events (media/function keys: brightness, volume, playback, etc.)
+        if type.rawValue == 14,
+           let nsEvent = NSEvent(cgEvent: event),
+           nsEvent.subtype.rawValue == 8 {
+            let data1 = nsEvent.data1
+            let keyCode = (data1 >> 16) & 0xFF
+            let isDown = ((data1 >> 8) & 0xFF) == 0x0A
+            if isDown {
+                let keyName: String
+                switch keyCode {
+                case 0:  keyName = "VolumeUp"
+                case 1:  keyName = "VolumeDown"
+                case 2:  keyName = "BrightnessUp"
+                case 3:  keyName = "BrightnessDown"
+                case 7:  keyName = "Mute"
+                case 16: keyName = "Play/Pause"
+                case 17: keyName = "NextTrack"
+                case 18: keyName = "PrevTrack"
+                case 21: keyName = "KbBrightnessUp"
+                case 22: keyName = "KbBrightnessDown"
+                default: keyName = "Media\(keyCode)"
+                }
+                pKeystrokes += 1
+                pKeyCounts[keyName, default: 0] += 1
+                pDailyKeystrokes[today(), default: 0] += 1
+            }
+        }
     }
 
     return Unmanaged.passRetained(event)
@@ -650,6 +677,7 @@ eventMask |= (1 << CGEventType.mouseMoved.rawValue)
 eventMask |= (1 << CGEventType.leftMouseDragged.rawValue)
 eventMask |= (1 << CGEventType.rightMouseDragged.rawValue)
 eventMask |= (1 << CGEventType.otherMouseDragged.rawValue)
+eventMask |= (1 << 14) // NX_SYSDEFINED (media/function keys)
 
 guard let tap = CGEvent.tapCreate(
     tap: .cgSessionEventTap,
